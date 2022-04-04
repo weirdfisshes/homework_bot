@@ -1,28 +1,21 @@
 import os
-
-import requests
-
-import telegram
-
 import time
-
 import logging
+from http import HTTPStatus
 
 from dotenv import load_dotenv
+import requests
+import telegram
 
 load_dotenv()
-
-secret_id = os.getenv('chat_id')
-secret_praktikum = os.getenv('praktikum_token')
-secert_tg = os.getenv('tg_token')
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO)
 
-PRACTICUM_TOKEN = secret_praktikum
-TELEGRAM_TOKEN = secert_tg
-TELEGRAM_CHAT_ID = secret_id
+PRACTICUM_TOKEN = os.getenv('praktikum_token')
+TELEGRAM_TOKEN = os.getenv('tg_token')
+TELEGRAM_CHAT_ID = os.getenv('chat_id')
 
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -36,13 +29,27 @@ HOMEWORK_STATUSES = {
 }
 
 
+class TelegramIsUnavailable(Exception):
+    """Ответ от сервера не получен."""
+
+    pass
+
+
+class AnswerIsEmpty(Exception):
+    """Ответ от сервера пустой."""
+
+    pass
+
+
 def send_message(bot, message):
     """Отправка сообщения."""
+    if message == '':
+        message = 'Список работ пуст'
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.info('Сообщение отправлено')
-    except Exception as error:
-        logging.error(f'Сообщение не отправлено: {error}')
+    except telegram.TelegramError:
+        logging.error('Сообщение не отправлено')
 
 
 def get_api_answer(current_timestamp):
@@ -50,30 +57,27 @@ def get_api_answer(current_timestamp):
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
     answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
-    if answer.status_code == 200:
+    if answer.status_code == HTTPStatus.OK:
         logging.info('Получен ответ от API')
         return answer.json()
-    else:
-        logging.error('Ответ от API не получен')
-        raise AssertionError('status_code !== 200')
+    logging.error('Ответ от API не получен')
+    raise TelegramIsUnavailable('Ответ от API не получен')
 
 
 def check_response(response):
     """Проверка ответа от API."""
     if len(response['homeworks']) == 0:
-        logging.error('homeworks пустой')
-        raise ValueError('homeworks пустой')
-    elif 'homeworks' not in response:
-        logging.error('В ответе API отсутсвует ключ homeworks')
-        raise ValueError('В ответе API отсутсвует ключ homeworks')
-    elif 'current_date' not in response:
-        logging.error('В ответе API отсутсвует ключ current_date')
-        raise ValueError('В ответе API отсутсвует ключ current_date')
-    elif type(response['homeworks']) is not list:
+        logging.info('Список домашних работ пуст')
+    elif ('homeworks' not in response) and ('current_date' not in response):
+        logging.error('Ответ API пустой')
+        raise AnswerIsEmpty('Ответ API пустой')
+    elif not isinstance(response['homeworks'], list):
         logging.error('homeworks не список')
         raise ValueError('homeworks не список')
-    else:
-        return response.get('homeworks')
+    elif not isinstance(response, dict):
+        logging.error('response не словарь')
+        raise ValueError('response не словарь')
+    return response.get('homeworks')
 
 
 def parse_status(homework):
@@ -105,13 +109,12 @@ def main():
                 response = get_api_answer(current_timestamp)
                 response = check_response(response)
                 response = parse_status(response[0])
-                current_timestamp = int(time.time())
+                current_timestamp = response.get('current_date')
                 if last_response != response:
                     send_message(bot, response)
                     last_response = response
                 else:
                     logging.debug('Статус домашки не изменился')
-                time.sleep(RETRY_TIME)
             else:
                 logging.critical('Отсутствуют переменные окружения!')
                 raise SystemExit()
@@ -121,6 +124,8 @@ def main():
             if error_message != message:
                 send_message(bot, message)
                 error_message = message
+
+        finally:
             time.sleep(RETRY_TIME)
 
 
