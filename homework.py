@@ -29,6 +29,12 @@ HOMEWORK_STATUSES = {
 }
 
 
+class PraktikumIsUnavailable(Exception):
+    """Ответ от сервера не получен."""
+
+    pass
+
+
 class TelegramIsUnavailable(Exception):
     """Ответ от сервера не получен."""
 
@@ -50,6 +56,7 @@ def send_message(bot, message):
         logging.info('Сообщение отправлено')
     except telegram.TelegramError:
         logging.error('Сообщение не отправлено')
+        raise TelegramIsUnavailable('Телеграм недоступен')
 
 
 def get_api_answer(current_timestamp):
@@ -61,14 +68,14 @@ def get_api_answer(current_timestamp):
         logging.info('Получен ответ от API')
         return answer.json()
     logging.error('Ответ от API не получен')
-    raise TelegramIsUnavailable('Ответ от API не получен')
+    raise PraktikumIsUnavailable('Ответ от API не получен')
 
 
 def check_response(response):
     """Проверка ответа от API."""
     if len(response['homeworks']) == 0:
         logging.info('Список домашних работ пуст')
-    elif ('homeworks' not in response) and ('current_date' not in response):
+    elif ('homeworks' not in response) or ('current_date' not in response):
         logging.error('Ответ API пустой')
         raise AnswerIsEmpty('Ответ API пустой')
     elif not isinstance(response['homeworks'], list):
