@@ -7,6 +7,12 @@ from dotenv import load_dotenv
 import requests
 import telegram
 
+from exceptions import (
+    TelegramIsUnavailable,
+    PraktikumIsUnavailable,
+    AnswerIsEmpty
+)
+
 load_dotenv()
 
 logging.basicConfig(
@@ -27,24 +33,6 @@ HOMEWORK_STATUSES = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
-
-
-class PraktikumIsUnavailable(Exception):
-    """Ответ от сервера не получен."""
-
-    pass
-
-
-class TelegramIsUnavailable(Exception):
-    """Ответ от сервера не получен."""
-
-    pass
-
-
-class AnswerIsEmpty(Exception):
-    """Ответ от сервера пустой."""
-
-    pass
 
 
 def send_message(bot, message):
