@@ -1,2 +1,4 @@
 # homework_bot
-python telegram bot
+### Описание. 
+
+Telegram-бот, который отправляет статус проверки домашней работы Яндекс.Практикума. Автор: Бурцев Никита. Технологии: python, python-telegram-bot.
